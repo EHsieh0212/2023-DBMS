@@ -1,0 +1,78 @@
+## Part 2
+## 2-1
+## first put files into "import" folder
+LOAD CSV WITH HEADERS FROM 'file:///DBMS_student_list.csv' AS row
+WITH TRIM(replace(SPLIT(row.姓名, '(')[0], ' ', '')) AS modifiedName, row
+CREATE (n:student {姓名: modifiedName, 身份: row.身份, 班別: row.班別, 系所: row.系所, 年級: toInteger(row.年級), 信箱: row.信箱, 學號: row.學號})
+RETURN n
+
+## 2-2
+MATCH (n:student)
+WHERE n.姓名 IN ['鄧鈺儒','林品歷','吳品萱', '謝佳穎']
+SET n.group_id = 12
+WITH n
+WHERE not n.姓名 IN ['鄧鈺儒','林品歷','吳品萱', '謝佳穎']
+SET n.group_id = 0
+return n
+
+MATCH (n:student)
+WHERE not n.姓名 IN ['鄧鈺儒','林品歷','吳品萱', '謝佳穎']
+SET n.group_id = 0
+return n
+
+## 2-3
+MATCH (n)
+WHERE n.group_id = 12
+RETURN COLLECT(n) AS propertyList
+
+
+##########################################################################################
+## Part 3
+## 3-1
+LOAD CSV WITH HEADERS FROM 'file:///hw6_hobbies.csv' AS row
+WITH TRIM(replace(SPLIT(row.姓名, '(')[0], ' ', '')) AS modifiedName, row
+CREATE (:hobby {姓名: modifiedName, 學號: row.學號, hobby1: row.hobby1, hobby2: row.hobby2, hobby3: row.hobby3, hobby4: row.hobby4, hobby5: row.hobby5})
+
+MATCH (a:hobby)
+WHERE 'none' IN [a.hobby1, a.hobby2, a.hobby3, a.hobby4, a.hobby5]
+DELETE a
+
+MATCH (n:hobby) 
+RETURN n
+
+
+## 3-2: my hobbyfriends
+MATCH (me:hobby {姓名: '謝佳穎'}), (they:hobby)
+WHERE they.姓名 <> '謝佳穎' 
+AND ANY(h IN [me.hobby1, me.hobby2, me.hobby3, me.hobby4, me.hobby5] WHERE h IN [they.hobby1, they.hobby2, they.hobby3, they.hobby4, they.hobby5])
+CREATE (me)-[r:hobbyfriends]->(they)
+RETURN distinct they
+#total: 53
+
+
+## 3-3: 1.my hobbyfriends' hobbyfriends 2. they are my foaf 3. foaf cannot have same hobbies as me
+MATCH (me:hobby{姓名: '謝佳穎'}), (they:hobby), (theirfriend:hobby)
+MATCH  (me)-[:hobbyfriends]->(they)
+WHERE theirfriend.姓名 <> '謝佳穎' AND theirfriend.姓名 <> they.姓名 
+AND ANY(h IN [they.hobby1, they.hobby2, they.hobby3, they.hobby4, they.hobby5] WHERE h IN [theirfriend.hobby1, theirfriend.hobby2, theirfriend.hobby3, theirfriend.hobby4, theirfriend.hobby5])
+AND NONE(h2 IN [me.hobby1, me.hobby2, me.hobby3, me.hobby4, me.hobby5] WHERE h2 IN [theirfriend.hobby1, theirfriend.hobby2, theirfriend.hobby3, theirfriend.hobby4, theirfriend.hobby5])
+CREATE (me)-[r:foaf]->(theirfriend)
+RETURN distinct theirfriend
+#total: 13
+
+
+## 3-4: 1. group 12 members have hobbyfriends 2. they are my foaf2
+MATCH (member:student{group_id:12})
+WITH collect(member.姓名) as member_name
+MATCH (me:hobby{姓名: '謝佳穎'}),(they:hobby), (theirfriend:hobby)
+WHERE they.姓名 IN member_name AND they.姓名 <> '謝佳穎' AND theirfriend.姓名 <> "謝佳穎" AND NOT theirfriend.姓名 IN member_name AND theirfriend.姓名 <> they.姓名
+AND ANY(h IN [they.hobby1, they.hobby2, they.hobby3, they.hobby4, they.hobby5] WHERE h IN [theirfriend.hobby1, theirfriend.hobby2, theirfriend.hobby3, theirfriend.hobby4, theirfriend.hobby5])
+CREATE (me)-[r:foaf2]->(theirfriend)
+return distinct theirfriend
+#total: 61
+
+
+## 3-5 exclude foaf from foaf2
+MATCH (h:hobby)
+WHERE (h)-[:foaf2]-() AND NOT (h)-[:foaf]-() AND h.姓名 <> '謝佳穎'
+RETURN distinct h

@@ -1,0 +1,48 @@
+## 1-1
+sudo mongod --dbpath=~/mongodb-data --port=27017
+mongosh
+show dbs
+use hw6
+db.createCollection("students")
+cd 2023-DBMS
+mongoimport --db=hw6 --collection=students --type=csv --headerline --file=./hw6/DBMS_student_list.csv
+
+## 1-2
+db.students.find( { 身份:{$nin: ["旁聽生"]}, 系所: "資管系", 年級: {$nin: [3,4]}, 姓名: {$nin: ["劉正宇 (LIOU, CHENG-YU)"]} } )
+
+## 1-3
+db.students.aggregate( [{$group:{_id: {department: "$系所", grade: "$年級"}, total:{$sum:1}}}] )
+
+## 1-4
+db.students.updateMany({}, {$set:{join_date: "2023-03-01"}})
+db.students.find( { 身份:{$nin: ["旁聽生"]}, 系所: "資管系", 年級: {$nin: [3,4]}, 姓名: {$nin: ["劉正宇 (LIOU, CHENG-YU)"]} } )
+
+## 1-5
+## turn new_student_list.csv from big-5 into utf-8 encoding (mongoimport accepts utf-8 only)
+mongoimport --db=hw6 --collection=students --type=csv --headerline --file=./hw6/new_student_list.csv --mode insert
+db.students.countDocuments()
+db.students.find({姓名: {$in:["謝佳穎 (HSIEH, CHIA-YING)", "小紅", "小黃", "小綠"]}})
+
+## 1-6
+calsum= function(thedate){
+    db.students.aggregate([
+        {$match: {join_date: thedate}},
+        {$group: {
+            _id:{ department: "$系所", grade: "$年級" },
+            total_count: { $sum: 1 }
+        }},
+        {$group: {
+            "_id":"tally",
+            groupby_result: { $push: "$$ROOT" }
+        }},
+        {$merge:{
+            into:"students",
+            whenMatched: "replace",
+            whenNotMatched: "insert"     
+        }}
+    ])
+}
+calsum("2023-03-01")
+db.students.find({"_id":"tally"})
+calsum("2023-06-02")
+db.students.find({"_id":"tally"})
